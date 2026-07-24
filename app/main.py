@@ -45,7 +45,9 @@ def _reset_download_state():
 
     with _download_lock:
         if _download_thread is not None and _download_thread.is_alive():
-            _download_thread = None
+            _download_thread.join(timeout=3)
+        _download_thread = None
+        _stop_event = threading.Event()
 
     _download_state.update({
         "status": "idle",

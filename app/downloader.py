@@ -244,13 +244,6 @@ class Downloader:
 
                     self.save_archive(archive)
 
-                    # Пауза перед отметкой о скачивании, чтобы не превысить лимит
-                    if self.is_stopped():
-                        raise InterruptedError("Операция остановлена пользователем")
-                    time.sleep(2)
-
-                    self.mark_downloaded(batch, progress_callback=progress_callback)
-
                     self.total_downloaded += len(batch)
 
                     self._emit_progress(
@@ -272,7 +265,7 @@ class Downloader:
                         time.sleep(3)
 
                     # Дополнительная длинная пауза каждые 10 батчей (30 файлов)
-                    # чтобы сбросить кумулятивный лимит запросов API
+
                     batch_number = i // 3 + 1
                     if batch_number % 10 == 0 and i + 3 < len(names):
                         if self.is_stopped():
