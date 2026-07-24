@@ -90,8 +90,11 @@ def download():
     global _download_thread, _stop_event
 
     with _download_lock:
+        # Останавливаем предыдущий поток, если он ещё жив
         if _download_thread is not None and _download_thread.is_alive():
-            return JSONResponse({"status": "running"})
+            _stop_event.set()
+            _download_thread.join(timeout=3)
+            _download_thread = None
 
         _stop_event = threading.Event()
 
@@ -118,13 +121,15 @@ def download_status():
 @app.get("/files")
 def files(
         request: Request,
-        page: int = Query(default=1, ge=1)
+        page: int = Query(default=1, ge=1),
+        sort: str = Query(default="desc")
 ):
     db = SessionLocal()
 
     per_page = 20
 
-    all_files = db.query(File).order_by(File.downloaded_at.desc()).all()
+    order = File.downloaded_at.asc() if sort == "asc" else File.downloaded_at.desc()
+    all_files = db.query(File).order_by(order).all()
     all_filenames = [file.filename for file in all_files]
 
     total = len(all_files)
@@ -145,6 +150,7 @@ def files(
             "pages": pages,
             "all_filenames": all_filenames,
             "download_state": _download_state,
+            "sort": sort,
         }
     )
 
@@ -218,5 +224,6 @@ def analyze(
             "pages": pages,
             "all_filenames": all_filenames,
             "download_state": _download_state,
+            "sort": "desc",
         }
     )

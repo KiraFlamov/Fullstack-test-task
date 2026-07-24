@@ -48,7 +48,7 @@ class Downloader:
         progress_callback = kwargs.pop("progress_callback", None)
 
         attempt = 0
-        max_attempts = 10
+        max_attempts = 50
 
         while True:
             if self.is_stopped():
@@ -235,9 +235,19 @@ class Downloader:
                         batch
                     )
 
+                    # Пауза перед скачиванием, чтобы не превысить лимит
+                    if self.is_stopped():
+                        raise InterruptedError("Операция остановлена пользователем")
+                    time.sleep(2)
+
                     archive = self.download_batch(batch, progress_callback=progress_callback)
 
                     self.save_archive(archive)
+
+                    # Пауза перед отметкой о скачивании, чтобы не превысить лимит
+                    if self.is_stopped():
+                        raise InterruptedError("Операция остановлена пользователем")
+                    time.sleep(2)
 
                     self.mark_downloaded(batch, progress_callback=progress_callback)
 
@@ -254,6 +264,32 @@ class Downloader:
                         self.total_downloaded,
                         self.total_received
                     )
+
+                    # Пауза между батчами, чтобы не превысить лимит запросов
+                    if i + 3 < len(names):
+                        if self.is_stopped():
+                            raise InterruptedError("Операция остановлена пользователем")
+                        time.sleep(3)
+
+                    # Дополнительная длинная пауза каждые 10 батчей (30 файлов)
+                    # чтобы сбросить кумулятивный лимит запросов API
+                    batch_number = i // 3 + 1
+                    if batch_number % 10 == 0 and i + 3 < len(names):
+                        if self.is_stopped():
+                            raise InterruptedError("Операция остановлена пользователем")
+                        cooldown = 10
+                        for remaining in range(cooldown, 0, -1):
+                            if self.is_stopped():
+                                raise InterruptedError("Операция остановлена пользователем")
+                            self._emit_progress(
+                                progress_callback,
+                                current_batch=[],
+                                message=f"Пауза для сброса лимита API. Осталось {remaining} сек...",
+                                status="waiting",
+                                retry_after=remaining,
+                            )
+                            time.sleep(1)
+
 
             self._emit_progress(
                 progress_callback,

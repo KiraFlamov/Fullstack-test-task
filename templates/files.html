@@ -90,7 +90,12 @@
 
                 <th>Имя файла</th>
 
-                <th width="220">Время скачивания</th>
+                <th width="220">
+                    <a href="/files?page={{ page }}&sort={% if sort == 'asc' %}desc{% else %}asc{% endif %}" class="text-white text-decoration-none">
+                        Время скачивания
+                        {% if sort == 'asc' %}▲{% else %}▼{% endif %}
+                    </a>
+                </th>
 
             </tr>
 
@@ -152,7 +157,7 @@
 
                 <a
                         class="page-link"
-                        href="/files?page={{ p }}">
+                        href="/files?page={{ p }}&sort={{ sort }}">
 
                     {{ p }}
 
@@ -301,6 +306,14 @@ const messageText = document.getElementById('messageText');
 const retryAfterText = document.getElementById('retryAfterText');
 const ALL_FILENAMES = {{ all_filenames|tojson }};
 
+let retryTimer = null;
+
+function formatTime(seconds) {
+    const m = Math.floor(seconds / 60);
+    const s = seconds % 60;
+    return `${m} мин ${s} сек`;
+}
+
 function updateProgress() {
     fetch('/download/status')
         .then((response) => response.json())
@@ -311,7 +324,28 @@ function updateProgress() {
             downloadedCount.textContent = data.total_downloaded;
             totalCount.textContent = data.total_received;
             messageText.textContent = data.message;
-            retryAfterText.textContent = data.retry_after ? `${data.retry_after} сек.` : '—';
+
+            if (data.retry_after != null && data.status === 'waiting') {
+                retryAfterText.textContent = formatTime(data.retry_after);
+                if (retryTimer) clearInterval(retryTimer);
+                let localRetry = data.retry_after;
+                retryTimer = setInterval(() => {
+                    localRetry--;
+                    if (localRetry <= 0) {
+                        clearInterval(retryTimer);
+                        retryTimer = null;
+                        retryAfterText.textContent = '0 сек';
+                    } else {
+                        retryAfterText.textContent = formatTime(localRetry);
+                    }
+                }, 1000);
+            } else {
+                retryAfterText.textContent = data.retry_after ? formatTime(data.retry_after) : '—';
+                if (retryTimer) {
+                    clearInterval(retryTimer);
+                    retryTimer = null;
+                }
+            }
         })
         .catch((error) => {
         console.error(error);
