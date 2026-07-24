@@ -66,21 +66,16 @@ class Downloader:
                 if response.status_code == 200:
                     return response
 
-                if response.status_code == 429:
+                if response.status_code in (429, 403):
                     retry = int(
                         response.headers.get("Retry-After", 1)
                     )
 
-                    self._emit_progress(
-                        progress_callback,
-                        current_batch=[],
-                        message=f"Слишком много запросов. Ждем {retry} секунд...",
-                        status="waiting",
-                        retry_after=retry,
-                    )
+                    reason = "слишком много запросов" if response.status_code == 429 else "блокировка"
 
                     logger.info(
-                        "Лимит запросов. Ждем %s секунд...",
+                        "%s. Ждем %s секунд...",
+                        reason.capitalize(),
                         retry
                     )
 
@@ -91,7 +86,20 @@ class Downloader:
                             "Превышено количество попыток подключения."
                         )
 
-                    time.sleep(retry)
+                    # Ждем с пошаговым обновлением retry_after каждую секунду
+                    for remaining in range(retry, 0, -1):
+                        if self.is_stopped():
+                            raise InterruptedError("Операция остановлена пользователем")
+
+                        self._emit_progress(
+                            progress_callback,
+                            current_batch=[],
+                            message=f"{reason.capitalize()}. Осталось {remaining} сек...",
+                            status="waiting",
+                            retry_after=remaining,
+                        )
+
+                        time.sleep(1)
 
                     continue
 
