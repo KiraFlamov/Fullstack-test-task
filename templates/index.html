@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="ru">
+
+<head>
+
+    <meta charset="UTF-8">
+
+    <title>Downloader</title>
+
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.7/dist/css/bootstrap.min.css"
+          rel="stylesheet">
+
+</head>
+
+<body>
+
+<div class="container mt-5">
+
+    <h2>Тестовое задание</h2>
+
+    <div class="d-flex gap-2 mb-3">
+
+        <button id="downloadBtn" class="btn btn-primary">
+            Скачать данные
+        </button>
+
+        <form action="/files/clear" method="post" class="d-inline">
+            <button class="btn btn-outline-danger">
+                Очистить файлы
+            </button>
+        </form>
+
+    </div>
+
+    <br>
+
+    <div id="progressBox" class="card p-3">
+        <p><strong>Статус:</strong> <span id="statusText">{{ download_state.status }}</span></p>
+        <p><strong>Время старта:</strong> <span id="startTime">{{ download_state.start_time or '—' }}</span></p>
+        <p><strong>Получено названий:</strong> <span id="receivedCount">{{ download_state.total_received }}</span></p>
+        <p><strong>Скачано / всего:</strong> <span id="downloadedCount">{{ download_state.total_downloaded }}</span> / <span id="totalCount">{{ download_state.total_received }}</span></p>
+        <p><strong>Сообщение:</strong> <span id="messageText">{{ download_state.message }}</span></p>
+        <p><strong>Ожидание до разблокировки:</strong> <span id="retryAfterText">{{ download_state.retry_after or '—' }}</span></p>
+    </div>
+
+    <br>
+
+    <a href="/files" class="btn btn-success">
+        Список файлов
+    </a>
+
+</div>
+
+<script>
+const downloadBtn = document.getElementById('downloadBtn');
+const statusText = document.getElementById('statusText');
+const startTime = document.getElementById('startTime');
+const receivedCount = document.getElementById('receivedCount');
+const downloadedCount = document.getElementById('downloadedCount');
+const totalCount = document.getElementById('totalCount');
+const messageText = document.getElementById('messageText');
+const retryAfterText = document.getElementById('retryAfterText');
+
+function updateProgress() {
+    fetch('/download/status')
+        .then((response) => response.json())
+        .then((data) => {
+            statusText.textContent = data.status;
+            startTime.textContent = data.start_time || '—';
+            receivedCount.textContent = data.total_received;
+            downloadedCount.textContent = data.total_downloaded;
+            totalCount.textContent = data.total_received;
+            messageText.textContent = data.message;
+            retryAfterText.textContent = data.retry_after ? `${data.retry_after} сек.` : '—';
+        });
+}
+
+downloadBtn.addEventListener('click', () => {
+    fetch('/download', {method: 'POST'})
+        .then(() => updateProgress());
+});
+
+setInterval(updateProgress, 2000);
+updateProgress();
+</script>
+
+</body>
+
+</html>

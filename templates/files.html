@@ -1,0 +1,467 @@
+<!DOCTYPE html>
+<html lang="ru">
+
+<head>
+
+    <meta charset="UTF-8">
+
+    <title>Скачанные файлы</title>
+
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.7/dist/css/bootstrap.min.css"
+          rel="stylesheet">
+
+</head>
+
+<body>
+
+<div class="container mt-4">
+
+    <div class="d-flex justify-content-between align-items-center mb-4">
+
+        <h2>Скачанные файлы</h2>
+
+        <div>
+
+            <a href="/" class="btn btn-secondary">
+                Назад
+            </a>
+
+        </div>
+
+    </div>
+
+
+    <div id="progressBox" class="card p-3 mb-4">
+        <p><strong>Статус:</strong> <span id="statusText">{{ download_state.status }}</span></p>
+        <p><strong>Время старта:</strong> <span id="startTime">{{ download_state.start_time or '—' }}</span></p>
+        <p><strong>Получено названий:</strong> <span id="receivedCount">{{ download_state.total_received }}</span></p>
+        <p><strong>Скачано / всего:</strong> <span id="downloadedCount">{{ download_state.total_downloaded }}</span> / <span id="totalCount">{{ download_state.total_received }}</span></p>
+        <p><strong>Сообщение:</strong> <span id="messageText">{{ download_state.message }}</span></p>
+        <p><strong>Ожидание до разблокировки:</strong> <span id="retryAfterText">{{ download_state.retry_after or '—' }}</span></p>
+    </div>
+
+    <form action="/analyze" method="post">
+
+        <input type="hidden" name="page" value="{{ page }}">
+
+        <div class="mb-3">
+
+            <input
+                    class="form-check-input"
+                    type="checkbox"
+                    id="selectAll">
+
+            <label
+                    class="form-check-label"
+                    for="selectAll">
+
+                Выделить все на странице
+
+            </label>
+
+        </div>
+
+        <div class="mb-3">
+
+            <input
+                    class="form-check-input"
+                    type="checkbox"
+                    id="selectAllFiles"
+                    name="select_all"
+                    value="1">
+
+            <label
+                    class="form-check-label"
+                    for="selectAllFiles">
+
+                Выделить все скачанные файлы
+
+            </label>
+
+        </div>
+
+        <table class="table table-striped table-hover table-bordered align-middle">
+
+            <thead class="table-dark">
+
+            <tr>
+
+                <th width="50"></th>
+
+                <th>Имя файла</th>
+
+                <th width="220">Время скачивания</th>
+
+            </tr>
+
+            </thead>
+
+            <tbody>
+
+            {% for file in files %}
+
+            <tr>
+
+                <td>
+
+                    <input
+                            class="form-check-input"
+                            type="checkbox"
+                            name="filenames"
+                            value="{{ file.filename }}">
+
+                </td>
+
+                <td>
+
+                    {{ file.filename }}
+
+                </td>
+
+                <td>
+
+                    {{ file.downloaded_at.strftime("%d.%m.%Y %H:%M:%S") }}
+
+                </td>
+
+            </tr>
+
+            {% endfor %}
+
+            </tbody>
+
+        </table>
+
+        <button class="btn btn-primary">
+
+            Произвести расчёты
+
+        </button>
+
+    </form>
+
+    <br>
+
+    <nav>
+
+        <ul class="pagination">
+
+            {% for p in range(1, pages + 1) %}
+
+            <li class="page-item {% if p == page %}active{% endif %}">
+
+                <a
+                        class="page-link"
+                        href="/files?page={{ p }}">
+
+                    {{ p }}
+
+                </a>
+
+            </li>
+
+            {% endfor %}
+
+        </ul>
+
+    </nav>
+
+    {% if stats %}
+
+    <hr>
+
+    <h3>
+
+        Общая статистика
+
+    </h3>
+
+    <table class="table table-bordered">
+
+        <thead>
+
+        <tr>
+
+            <th>Цифра</th>
+
+            <th>Количество</th>
+
+        </tr>
+
+        </thead>
+
+        <tbody>
+
+        {% for digit, value in stats.total.items() %}
+
+        <tr>
+
+            <td>
+
+                {{ digit }}
+
+            </td>
+
+            <td>
+
+                {{ value }}
+
+            </td>
+
+        </tr>
+
+        {% endfor %}
+
+        </tbody>
+
+    </table>
+
+    <hr>
+
+    <h3>
+
+        Статистика по файлам
+
+    </h3>
+
+    {% for filename, stat in stats.files.items() %}
+
+    <div class="card mb-4">
+
+        <div class="card-header">
+
+            <strong>
+
+                {{ filename }}
+
+            </strong>
+
+        </div>
+
+        <div class="card-body">
+
+            <table class="table table-sm table-bordered">
+
+                <thead>
+
+                <tr>
+
+                    <th>Цифра</th>
+
+                    <th>Количество</th>
+
+                </tr>
+
+                </thead>
+
+                <tbody>
+
+                {% for digit, value in stat.items() %}
+
+                <tr>
+
+                    <td>
+
+                        {{ digit }}
+
+                    </td>
+
+                    <td>
+
+                        {{ value }}
+
+                    </td>
+
+                </tr>
+
+                {% endfor %}
+
+                </tbody>
+
+            </table>
+
+        </div>
+
+    </div>
+
+    {% endfor %}
+
+    {% endif %}
+
+</div>
+
+<script>
+
+const statusText = document.getElementById('statusText');
+const startTime = document.getElementById('startTime');
+const receivedCount = document.getElementById('receivedCount');
+const downloadedCount = document.getElementById('downloadedCount');
+const totalCount = document.getElementById('totalCount');
+const messageText = document.getElementById('messageText');
+const retryAfterText = document.getElementById('retryAfterText');
+const ALL_FILENAMES = {{ all_filenames|tojson }};
+
+function updateProgress() {
+    fetch('/download/status')
+        .then((response) => response.json())
+        .then((data) => {
+            statusText.textContent = data.status;
+            startTime.textContent = data.start_time || '—';
+            receivedCount.textContent = data.total_received;
+            downloadedCount.textContent = data.total_downloaded;
+            totalCount.textContent = data.total_received;
+            messageText.textContent = data.message;
+            retryAfterText.textContent = data.retry_after ? `${data.retry_after} сек.` : '—';
+        })
+        .catch((error) => {
+        console.error(error);
+    })
+        ;
+}
+
+setInterval(updateProgress, 2000);
+updateProgress();
+
+const STORAGE_KEY = 'fileAnalyzerSelectedFiles';
+
+function getCheckboxes() {
+    return Array.from(document.getElementsByName('filenames'));
+}
+
+function readSelection() {
+    try {
+        return JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
+    } catch (error) {
+        return [];
+    }
+}
+
+function writeSelection(selected) {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(selected));
+}
+
+function syncPageCheckbox() {
+    const pageCheckbox = document.getElementById('selectAll');
+    if (!pageCheckbox) {
+        return;
+    }
+
+    const visibleCheckboxes = getCheckboxes();
+    pageCheckbox.checked = visibleCheckboxes.length > 0 && visibleCheckboxes.every((checkbox) => checkbox.checked);
+}
+
+function syncGlobalCheckbox() {
+    const globalCheckbox = document.getElementById('selectAllFiles');
+    if (!globalCheckbox) {
+        return;
+    }
+
+    const selected = readSelection();
+    globalCheckbox.checked = ALL_FILENAMES.length > 0 && ALL_FILENAMES.every((filename) => selected.includes(filename));
+}
+
+function renderSelection() {
+    const selected = readSelection();
+    const checkboxes = getCheckboxes();
+
+    checkboxes.forEach((checkbox) => {
+        checkbox.checked = selected.includes(checkbox.value);
+    });
+
+    syncPageCheckbox();
+    syncGlobalCheckbox();
+}
+
+function addToSelection(filename) {
+    const selected = readSelection();
+    if (!selected.includes(filename)) {
+        selected.push(filename);
+        writeSelection(selected);
+    }
+}
+
+function removeFromSelection(filename) {
+    const selected = readSelection();
+    const nextSelection = selected.filter((item) => item !== filename);
+    writeSelection(nextSelection);
+}
+
+function applySelectionToPage(checked) {
+    const checkboxes = getCheckboxes();
+
+    checkboxes.forEach((checkbox) => {
+        checkbox.checked = checked;
+        if (checked) {
+            addToSelection(checkbox.value);
+        } else {
+            removeFromSelection(checkbox.value);
+        }
+    });
+
+    renderSelection();
+}
+
+function handleCheckboxChange(event) {
+    const checkbox = event.target;
+    const value = checkbox.value;
+
+    if (checkbox.checked) {
+        addToSelection(value);
+    } else {
+        removeFromSelection(value);
+    }
+
+    renderSelection();
+}
+
+function toggleVisiblePage(source) {
+    applySelectionToPage(source.checked);
+}
+
+function bindCheckboxes() {
+    getCheckboxes().forEach((checkbox) => {
+        checkbox.removeEventListener('change', handleCheckboxChange);
+        checkbox.addEventListener('change', handleCheckboxChange);
+    });
+}
+
+const selectAll = document.getElementById('selectAll');
+if (selectAll) {
+    selectAll.addEventListener('change', (event) => toggleVisiblePage(event.target));
+}
+
+const selectAllFiles = document.getElementById('selectAllFiles');
+if (selectAllFiles) {
+    selectAllFiles.addEventListener('change', (event) => {
+        if (event.target.checked) {
+            writeSelection([...ALL_FILENAMES]);
+        } else {
+            writeSelection([]);
+        }
+        renderSelection();
+    });
+}
+
+bindCheckboxes();
+window.addEventListener('DOMContentLoaded', () => {
+    bindCheckboxes();
+    renderSelection();
+});
+window.addEventListener('pageshow', () => {
+    bindCheckboxes();
+    renderSelection();
+});
+window.addEventListener('load', () => {
+    bindCheckboxes();
+    renderSelection();
+});
+setTimeout(() => {
+    bindCheckboxes();
+    renderSelection();
+}, 0);
+
+</script>
+
+</body>
+
+</html>
